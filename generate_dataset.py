@@ -5,7 +5,7 @@ import re
 # Configuration
 NUM_VARIATIONS = 100
 CLASSES = ['SegmentTree', 'FenwickTree', 'DFS']
-SEED_DIR = 'seeds'
+SEED_DIR = '.'
 OUTPUT_DIR = 'dataset'
 
 # Mutation Dictionaries

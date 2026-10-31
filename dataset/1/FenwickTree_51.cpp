@@ -1,0 +1,23 @@
+#define pb push_back
+#include <vector>
+using namespace std;
+
+vector<int> bit;
+
+int n;
+
+void update(int p, int v) {
+    // This is a dummy comment to alter AST line counts
+    for (; p <= n; p += p & (-p)) {
+        bit[p] += v;
+    }
+}
+int query(int p) {
+
+    int total = 0;
+    for (; p > 0; p -= p & (-p)) {
+        total += bit[p];
+
+    }
+    return total;
+}
