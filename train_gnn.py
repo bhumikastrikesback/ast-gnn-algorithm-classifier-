@@ -7,6 +7,7 @@ from torch_geometric.loader import DataLoader
 from torch_geometric.nn import GCNConv, global_mean_pool
 from tree_sitter import Language, Parser
 import tree_sitter_cpp as tscpp
+from torch.utils.data import random_split
 
 # 1. Parser and Vocabulary Setup
 CPP_LANGUAGE = Language(tscpp.language())
@@ -79,31 +80,46 @@ class ASTGraphClassifier(nn.Module):
 # 4. Training Loop
 if __name__ == "__main__":
     dataset = load_dataset()
-    loader = DataLoader(dataset, batch_size=16, shuffle=True)
     
-    # Initialize Model, Optimizer, and Loss
+    # 1. Create an 80/20 Train/Test Split
+    train_size = int(0.8 * len(dataset))
+    test_size = len(dataset) - train_size
+    train_dataset, test_dataset = random_split(dataset, [train_size, test_size])
+    
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+    
     vocab_size = len(NODE_TYPE_VOCAB)
     print(f"Total unique AST nodes found: {vocab_size}")
     
     model = ASTGraphClassifier(vocab_size=vocab_size)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+    
+    # Adding weight decay (L2 Regularization) to prevent overfitting
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.005, weight_decay=1e-4)
     criterion = nn.CrossEntropyLoss()
 
-    print("Starting Training...")
-    model.train()
-    for epoch in range(1, 11): # 10 Epochs
+    print("Starting Training with Validation...")
+    for epoch in range(1, 11):
+        # Training Phase
+        model.train()
         total_loss = 0
-        correct = 0
-        for data in loader:
+        for data in train_loader:
             optimizer.zero_grad()
             out = model(data.x, data.edge_index, data.batch)
             loss = criterion(out, data.y)
             loss.backward()
             optimizer.step()
-            
             total_loss += loss.item()
-            pred = out.argmax(dim=1)
-            correct += int((pred == data.y).sum())
             
-        acc = correct / len(dataset)
-        print(f"Epoch {epoch:02d} | Loss: {total_loss/len(loader):.4f} | Accuracy: {acc:.4f}")
+        # Testing/Validation Phase (On Unseen Data)
+        model.eval()
+        correct = 0
+        with torch.no_grad():
+            for data in test_loader:
+                out = model(data.x, data.edge_index, data.batch)
+                pred = out.argmax(dim=1)
+                correct += int((pred == data.y).sum())
+        
+        test_acc = correct / len(test_dataset)
+        train_loss = total_loss / len(train_loader)
+        print(f"Epoch {epoch:02d} | Train Loss: {train_loss:.4f} | Test Acc: {test_acc:.4f}")
